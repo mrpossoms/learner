@@ -35,9 +35,14 @@ class NeuronalParams:
 
 
 class Neuron:
-    def __init__(self, params, name=None, position=np.array([np.random.normal(), np.random.normal()])):
+    def __init__(self, params, name=None, position=None):
         self.name = name
-        self.position = position
+
+        if position is None:
+            self.position = np.random.randn(2)
+        else:
+            self.position = position
+
         self.dendrites = []
         self.activation = 0
         self.params = params
@@ -70,7 +75,7 @@ class Neuron:
 
 
 class NerveBall:
-    def __init__(self, rewarder, size=100, params=NeuronalParams()):
+    def __init__(self, rewarder, inputs=[], outputs=[], size=100, params=NeuronalParams()):
         self.rewarder = rewarder
         self.neurons = []
         # self.neurons = [Neuron(params)] * size
@@ -79,12 +84,22 @@ class NerveBall:
             self.neurons.append(Neuron(params, name='n' + str(i)))
 
         for pre in self.neurons:
-            for post in self.neurons:
+            for post in self.neurons + outputs:
                 if pre is post: continue
 
                 # This could be tweaked
                 if pre.distance(post) < pre.params.synaptic_length:
                     pre.dendrites.append(Dendrite(post))
+
+        self.neurons += outputs
+
+        for pre in inputs:
+            for post in self.neurons:
+                if pre.distance(post) < pre.params.synaptic_length:
+                    pre.dendrites.append(Dendrite(post))
+
+        self.neurons = inputs + self.neurons
+
 
     def active(self):
         all_active = []

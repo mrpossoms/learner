@@ -21,9 +21,9 @@ def curses_routine(win):
         env.display(win)
         win.refresh()
 
-        if env.last_reinforcement > 0:
-            time.sleep(0.01)
-            pass
+        # if env.last_reinforcement > 0:
+            # time.sleep(0.01)
+            # pass
         # win.getch()
 
 if __name__ == '__main__':
