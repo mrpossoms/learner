@@ -2,28 +2,29 @@ import numpy as np
 
 
 class Rewarder:
-    @property
-    def reinforcement(self):
-        return 0
-
+    pass
 
 class Dendrite:
     def __init__(self, neuron):
         self.post_synaptic_neuron = neuron
-        self.weight = 0
+        self.weight = np.random.random(1)# - 0.5
         self.redefine()
 
     def redefine(self):
-        self.weight = np.random.random(1) - 0.5
+        s = self.weight / abs(self.weight)
+        self.weight = np.random.random(1) #* s
+        # self.weight = np.random.random(1) - 0.5
 
-    def signal(self, decay):
+    def signal(self):
         self.post_synaptic_neuron.activation += self.weight
-        self.weight *= decay
+        # self.weight *= decay
 
     def modify(self, reinforcement):
         if self.post_synaptic_neuron.is_active:
-            self.weight *= 1 + reinforcement
+            self.weight *= reinforcement
 
+            if self.weight > 1:
+                self.weight = 1
 
 class NeuronalParams:
     def __init__(self, activation_decay=0.2, synaptic_decay=0.001, synaptic_reinforcement=0.01, threshold=1, max_synaptic_length=0.2):
@@ -52,19 +53,26 @@ class Neuron:
         delta = self.position - other.position
         return np.sqrt((delta ** 2).sum())
 
-    def step(self, t, reinforcement):
+    def reinforce(self, reinforcement):
+        for dendrite in self.dendrites:
+            if self.activation > self.params.threshold:
+                if dendrite.post_synaptic_neuron.is_active:
+                    dendrite.modify(self.params.synaptic_reinforcement + reinforcement)
+            # else:
+            # dendrite.weight *= self.params.synaptic_decay
+
+            # if abs(dendrite.weight) < 0.01:
+            #     dendrite.redefine()
+
+    def propagate(self, t):
         self.update_time = t
 
-        if self.activation > self.params.threshold:
-            for dendrite in self.dendrites:
-                dendrite.signal(self.params.synaptic_decay)
+        for dendrite in self.dendrites:
+            if self.activation > self.params.threshold:
+                dendrite.signal()
 
-                if dendrite.post_synaptic_neuron.is_active:
-                    dendrite.modify(self.params.synaptic_reinforcement * reinforcement)
-                elif abs(dendrite.weight) < 0.1 * self.params.threshold:
-                    dendrite.redefine()
-
-        self.activation *= self.params.activation_decay
+            # if abs(dendrite.weight) < 0.01:
+            #     dendrite.redefine()
 
     def __str__(self):
         return str('%s: %f' % (self.name, self.activation))
@@ -77,11 +85,15 @@ class Neuron:
 class NerveBall:
     def __init__(self, rewarder, inputs=[], outputs=[], size=100, params=NeuronalParams()):
         self.rewarder = rewarder
+        self.params = params
+        self.hidden = []
         self.neurons = []
         # self.neurons = [Neuron(params)] * size
 
         for i in range(size):
-            self.neurons.append(Neuron(params, name='n' + str(i)))
+            neuron = Neuron(params, name='n' + str(i))
+            self.hidden.append(neuron)
+            self.neurons.append(neuron)
 
         for pre in self.neurons:
             for post in self.neurons + outputs:
@@ -91,6 +103,7 @@ class NerveBall:
                 if pre.distance(post) < pre.params.synaptic_length:
                     pre.dendrites.append(Dendrite(post))
 
+        self.outputs = outputs
         self.neurons += outputs
 
         for pre in inputs:
@@ -100,23 +113,53 @@ class NerveBall:
 
         self.neurons = inputs + self.neurons
 
-
-    def active(self):
-        all_active = []
+    def inhibited(self):
+        set = []
 
         for neuron in self.neurons:
-            if neuron.is_active: all_active.append(neuron)
+            if not neuron.is_active: set.append(neuron)
 
-        return all_active
+        return set
+
+    def active(self, in_set=None):
+        set = []
+
+        if in_set is None:
+            in_set = self.neurons
+
+        for neuron in in_set:
+            if neuron.is_active: set.append(neuron)
+
+        return set
 
     def step(self, t):
         reinforcement = self.rewarder.reinforcement
 
         for neuron in self.neurons:
-            neuron.step(t, reinforcement)
+            neuron.propagate(t)
+
+        # if we are doing poorly and nothing is activated
+        # act randomly
+        if reinforcement <= 0:
+            for neuron in self.hidden:
+                neuron.activation += np.random.random() * 0.2
+
+            if len(self.active(in_set=self.outputs)) == 0:
+                np.random.choice(self.outputs).activation = self.params.threshold + 0.1
+
+    def reinforce(self):
+        reinforcement = self.rewarder.reinforcement
 
         for neuron in self.active():
-            neuron.activation = neuron.params.threshold * 0.5
+            neuron.reinforce(reinforcement)
+            neuron.activation *= self.params.activation_decay
+
+    def reset(self):
+        for neuron in self.active():
+            neuron.activation = 0.5 * neuron.params.threshold
+
+        for neuron in self.inhibited():
+            neuron.activation = 0
 
 
 if __name__ == '__main__':

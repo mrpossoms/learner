@@ -22,7 +22,7 @@ def curses_routine(win):
         win.refresh()
 
         # if env.last_reinforcement > 0:
-            # time.sleep(0.01)
+        time.sleep(0.01)
             # pass
         # win.getch()
 

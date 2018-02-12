@@ -10,6 +10,7 @@ class Environment(neural.Rewarder):
         self.last_reinforcement = 0
         self.score = 0
         self.t = 0
+        self.reinforcement = 0
 
     def new_goal(self):
         return np.random.random(2)
@@ -26,14 +27,18 @@ class Environment(neural.Rewarder):
         sensor_measurements = np.array(sensor_measurements)
         sensor_measurements = (sensor_measurements >= sensor_measurements.max()) * np.ones(4)
 
-        action = agent.step(t, sensor_measurements)
+        action = agent.step(t, sensor_measurements, plot_net=False)
 
         directions = sensor_positions - agent.position
         for i in range(4):
-            if action[i] == max(action):
+            if action[i] > 0:
                 agent.position += directions[i]
 
         agent.position = np.clip(agent.position, a_min=np.zeros(2), a_max=np.ones(2))
+
+        self.evaluate()
+
+        agent.reinforce()
 
     def reward_field(self, at_location):
         dist = np.sqrt(((self.goal - at_location) ** 2).sum())
@@ -43,18 +48,12 @@ class Environment(neural.Rewarder):
 
         return 1 / dist
 
-    @property
-    def reinforcement(self):
+    def evaluate(self):
+        self.last_reinforcement = self.reinforcement
         reward = self.reward_field(self.agent.position)
-        reinforcement = reward - self.last_reward
 
-        if reinforcement == 0:
-            reinforcement -= 1
-
+        self.reinforcement = (reward - self.last_reward) * 10
         self.last_reward = reward
-        self.last_reinforcement = reinforcement
-
-        return reinforcement
 
     def display(self, win):
         h, w = win.getmaxyx()
