@@ -1,5 +1,5 @@
 import numpy as np
-import curses
+import time
 import neural
 
 class Environment(neural.Rewarder):
@@ -11,11 +11,14 @@ class Environment(neural.Rewarder):
         self.score = 0
         self.t = 0
         self.reinforcement = 0
+        self.reward_sum = 0
+        self.reward_sec = 0
+        self.last_second = 0
 
     def new_goal(self):
-        return np.random.random(2)
+        return (np.random.random(2) * 0.8) + 0.1
 
-    def step(self, t, agent):
+    def step(self, t, agent, show_plot):
         self.agent = agent
         self.t = t
 
@@ -27,18 +30,25 @@ class Environment(neural.Rewarder):
         sensor_measurements = np.array(sensor_measurements)
         sensor_measurements = (sensor_measurements >= sensor_measurements.max()) * np.ones(4)
 
-        action = agent.step(t, sensor_measurements, plot_net=False)
+        action = agent.step(t, sensor_measurements, plot_net=t % 100000 == 0)
 
         directions = sensor_positions - agent.position
         for i in range(4):
             if action[i] > 0:
-                agent.position += directions[i]
+                agent.position += directions[i] * action[i]
 
         agent.position = np.clip(agent.position, a_min=np.zeros(2), a_max=np.ones(2))
 
         self.evaluate()
-
         agent.reinforce()
+
+        self.reward_sum += self.reinforcement
+
+        now = int(time.time())
+        if self.last_second != now:
+            self.last_second = now
+            self.reward_sec = self.reward_sum
+            self.reward_sum = 0
 
     def reward_field(self, at_location):
         dist = np.sqrt(((self.goal - at_location) ** 2).sum())
@@ -52,7 +62,7 @@ class Environment(neural.Rewarder):
         self.last_reinforcement = self.reinforcement
         reward = self.reward_field(self.agent.position)
 
-        self.reinforcement = (reward - self.last_reward) * 10
+        self.reinforcement = ((reward - self.last_reward) * 10)# - 0.001
         self.last_reward = reward
 
     def display(self, win):
@@ -62,7 +72,7 @@ class Environment(neural.Rewarder):
         agent_pos = self.agent.position * win_size
 
         win.addstr(0, 0, '%d %d' % (self.t, self.score))
-        win.addstr(1, 0, str(self.last_reinforcement))
+        win.addstr(1, 0, '%0.2f units/sec' % self.reward_sec)
         win.addstr(2, 0, str(self.last_reward))
 
         win.addch(int(goal_pos[0]), int(goal_pos[1]), 'x')

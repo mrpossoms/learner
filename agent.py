@@ -5,15 +5,20 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import math
 
+
 class Agent:
     def __init__(self, rewarder):
         self.position = np.random.random(2)
 
-        params = NeuronalParams(threshold= 0.8,
-                                activation_decay=0.01,
+        def positioner(i):
+            dt = 2 * np.pi / 32
+            return np.array([np.cos(dt * i), np.sin(dt * i)]) * 0.2
+
+        params = NeuronalParams(threshold=0.9,
+                                activation_decay=0,
                                 synaptic_decay=0.1,
-                                synaptic_reinforcement=0.9,
-                                max_synaptic_length=2)
+                                synaptic_reinforcement=0.95,
+                                max_synaptic_length=0.2)
 
         self.sensor_nerves = []
         self.actuator_nerves = []
@@ -21,13 +26,24 @@ class Agent:
         dt = 2 * np.pi / 4
         pi_4 = np.pi / 4
         for i in range(4):
-            # sp = np.array([np.cos(dt * i), np.sin(dt * i)])
-            # ap = np.array([np.cos(dt * i + pi_4), np.sin(dt * i + pi_4)])
+            sensory_motor = NeuronalParams(threshold=0.5,
+                                           activation_decay=0,
+                                           synaptic_decay=0.1,
+                                           synaptic_reinforcement=0.95,
+                                           max_synaptic_length=0.15)
 
-            self.sensor_nerves += [neural.Neuron(params, name='s' + str(i))]
-            self.actuator_nerves += [neural.Neuron(params, name='a' + str(i))]
+            sp = np.array([np.cos(dt * i + 0.1), np.sin(dt * i + 0.1)])
+            ap = np.array([np.cos(dt * i + pi_4), np.sin(dt * i + pi_4)])
 
-        self.nb = neural.NerveBall(size=0, inputs=self.sensor_nerves, outputs=self.actuator_nerves, rewarder=rewarder, params=params)
+            self.sensor_nerves += [neural.Neuron(sensory_motor, name='s' + str(i), position=sp * 0.3)]
+            self.actuator_nerves += [neural.Neuron(sensory_motor, name='a' + str(i), position=ap * 0.1)]
+
+        self.nb = neural.NerveBall(size=32,
+                                   inputs=self.sensor_nerves,
+                                   outputs=self.actuator_nerves,
+                                   rewarder=rewarder,
+                                   params=params,
+                                   positioner=positioner)
 
         self.fig, self.ax = plt.subplots()
 
@@ -39,12 +55,12 @@ class Agent:
 
         action = []
 
-
-
         for neuron in self.actuator_nerves:
             # action.append(neuron.activation)
-            action.append(float(neuron.activation > neuron.params.threshold))
-
+            if neuron.is_active:
+                action.append(1)
+            else:
+                action.append(0)
 
         if plot_net:
             self.ax.clear()
@@ -74,13 +90,14 @@ class Agent:
                     color = 'orange'
 
                 a = neuron.activation + 0.25
-                if a > 1:
+                if a > 1 or neuron.is_active:
                     a = 1
                 if a < 0:
                     a = 0.25
+
                 self.ax.scatter(x, y, c=color, s=50, label=str(neuron), alpha=a, edgecolors='black')
 
-            self.ax.legend()
+            # self.ax.legend()
             self.ax.grid(True)
 
             self.fig.canvas.draw()
@@ -90,7 +107,7 @@ class Agent:
 
     def reinforce(self):
         self.nb.reinforce()
-        self.nb.reset()
+        # self.nb.reset()
 
     @property
     def sensors(self):
